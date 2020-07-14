@@ -6,9 +6,9 @@ import numpy as np
 import os
 import tasks.abc_task
 import time
-import car_racing_variants
-from takecover_variants.doom_take_cover import DoomTakeCoverEnv
 
+import procgen
+import car_racing_variants
 
 class GymTask(tasks.abc_task.BaseTask):
     """OpenAI gym tasks."""
@@ -22,10 +22,7 @@ class GymTask(tasks.abc_task.BaseTask):
         raise NotImplementedError()
 
     def seed(self, seed):
-        if isinstance(self, TakeCoverTask):
-            self._env.game.set_seed(seed)
-        else:
-            self._env.seed(seed)
+        self._env.seed(seed)
 
     def reset(self):
         return self._env.reset()
@@ -88,66 +85,6 @@ class GymTask(tasks.abc_task.BaseTask):
 
 
 @gin.configurable
-class TakeCoverTask(GymTask):
-    """VizDoom take cover task."""
-
-    def __init__(self):
-        super(TakeCoverTask, self).__init__()
-        self._float_text_env = False
-        self._text_img_path = '/opt/app/takecover_variants/attention_agent.png'
-
-    def create_task(self, **kwargs):
-        if 'render' in kwargs:
-            self._render = kwargs['render']
-        if 'logger' in kwargs:
-            self._logger = kwargs['logger']
-        modification = 'original'
-        if 'modification' in kwargs:
-            modification = kwargs['modification']
-            if modification == 'text':
-                self._float_text_env = True
-        self._logger.info('modification: {}'.format(modification))
-        self._env = DoomTakeCoverEnv(modification)
-        return self
-
-    def _process_observation(self, observation):
-        if not self._float_text_env:
-            return observation
-        img = cv2.imread(self._text_img_path, cv2.IMREAD_GRAYSCALE)
-        h, w = img.shape
-        full_color_patch = np.ones([h, w], dtype=np.uint8) * 255
-        zero_patch = np.zeros([h, w], dtype=np.uint8)
-        x = 150
-        y = 30
-        mask = (img == 0)
-        observation[y:(y+h), x:(x+w), 0][mask] = zero_patch[mask]
-        observation[y:(y+h), x:(x+w), 1][mask] = zero_patch[mask]
-        observation[y:(y+h), x:(x+w), 2][mask] = full_color_patch[mask]
-        observation[y:(y+h), x:(x+w), 0][~mask] = zero_patch[~mask]
-        observation[y:(y+h), x:(x+w), 1][~mask] = full_color_patch[~mask]
-        observation[y:(y+h), x:(x+w), 2][~mask] = full_color_patch[~mask]
-        return observation
-
-    def _process_action(self, action):
-        # Follow the code in world models.
-        action_to_apply = [0] * 43
-        threshold = 0.3333
-        if action > threshold:
-            action_to_apply[10] = 1
-        if action < -threshold:
-            action_to_apply[11] = 1
-        return action_to_apply
-
-    def set_video_dir(self, video_dir):
-        from gym.wrappers import Monitor
-        self._env = Monitor(
-            env=self._env,
-            directory=video_dir,
-            video_callable=lambda x: True
-        )
-
-
-@gin.configurable
 class CarRacingTask(GymTask):
     """Gym CarRacing-v0 task."""
 
@@ -197,6 +134,54 @@ class CarRacingTask(GymTask):
                 env_string = 'CarRacingBar-v0'
             elif kwargs['modification'] == 'blob':
                 env_string = 'CarRacingBlob-v0'
+            elif kwargs['modification'] == 'manu':
+                env_string = 'CarRacingManu-v0'
+        self._logger.info('env_string: {}'.format(env_string))
+        self._env = gym.make(env_string)
+        return self
+
+    def set_video_dir(self, video_dir):
+        from gym.wrappers import Monitor
+        self._env = Monitor(
+            env=self._env,
+            directory=video_dir,
+            video_callable=lambda x: True
+        )
+
+
+@gin.configurable
+class CoinrunTask(GymTask):
+    """Gym Coinrun-v0 task."""
+
+    def __init__(self):
+        super(CoinrunTask, self).__init__()
+        self._max_steps = 0
+
+    def seed(self, seed):
+        self._env.start_level = seed
+
+    def _process_action(self, action):
+        print('hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii')
+        import sys
+        sys.stdout.flush()
+        #print('1process action', action)
+        #print(self._env.action_space.sample())
+        return self._env.action_space.sample()
+        #return action
+        #return (action * (self._action_high - self._action_low) / 2. +
+        #        (self._action_high + self._action_low) / 2.)
+
+    def create_task(self, **kwargs):
+        if 'render' in kwargs:
+            self._render = kwargs['render']
+        if 'out_of_track_cap' in kwargs:
+            self._neg_reward_cap = kwargs['out_of_track_cap']
+        if 'max_steps' in kwargs:
+            self._max_steps = kwargs['max_steps']
+        if 'logger' in kwargs:
+            self._logger = kwargs['logger']
+
+        env_string = 'procgen:procgen-coinrun-v0'
         self._logger.info('env_string: {}'.format(env_string))
         self._env = gym.make(env_string)
         return self

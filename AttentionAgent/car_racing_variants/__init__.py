@@ -33,3 +33,12 @@ register(
     },
 )
 
+register(
+    id='CarRacingManu-v0',
+    entry_point='car_racing_variants.car_racing:CarRacing',
+    max_episode_steps=1000,
+    reward_threshold=900.0,
+    kwargs={
+        'modification': 'manu',
+    },
+)

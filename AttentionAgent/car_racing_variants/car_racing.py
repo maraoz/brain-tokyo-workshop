@@ -21,7 +21,7 @@ Author
     Yujin Tang (yujintang@google.com)
 """
 
-import sys, math
+import math
 import numpy as np
 
 import Box2D
@@ -370,7 +370,8 @@ class CarRacing(gym.Env, EzPickle):
             if self.verbose == 1:
                 print("retry to generate track (normal if there are not many of this messages)")
         add_blob = self._modification_type == 'blob'
-        self.car = Car(self.world, *self.track[0][1:4], add_blob=add_blob)
+        manu = self._modification_type == 'manu'
+        self.car = Car(self.world, *self.track[0][1:4], add_blob=add_blob, manu=manu)
 
         return self.step(None)[0]
 

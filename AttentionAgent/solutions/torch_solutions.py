@@ -235,10 +235,6 @@ class MLPSolution(BaseTorchSolution):
         self._use_lstm = use_lstm
         self._output_dim = output_dim
         self._output_activation = output_activation
-        if 'roulette' in self._output_activation:
-            assert self._output_dim == 1
-            self._n_grid = int(self._output_activation.split('_')[-1])
-            self._theta_per_grid = 2 * np.pi / self._n_grid
         self._l2_coefficient = abs(l2_coefficient)
         if self._use_lstm:
             self._fc_stack = LSTMStack(
@@ -262,10 +258,12 @@ class MLPSolution(BaseTorchSolution):
             inputs = torch.from_numpy(inputs).float()
         fc_output = self._fc_stack(inputs)
 
+        print('pre out activ')
         if self._output_activation == 'tanh':
             output = torch.tanh(fc_output).squeeze().numpy()
         elif self._output_activation == 'softmax':
-            output = F.softmax(fc_output, dim=-1).squeeze().numpy()
+            print('softmax')
+            output = F.softmax(fc_output).numpy()
         else:
             output = fc_output.squeeze().numpy()
 
@@ -274,7 +272,6 @@ class MLPSolution(BaseTorchSolution):
     def reset(self):
         if hasattr(self._fc_stack, 'reset'):
             self._fc_stack.reset()
-            print('hidden reset.')
 
 
 @gin.configurable

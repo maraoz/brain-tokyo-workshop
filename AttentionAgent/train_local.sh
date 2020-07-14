@@ -56,12 +56,12 @@ fi
 
 for ((i = 0; i < $NUM_WORKERS; i++))
 do
-    python run_worker.py --config=$CONFIG_FILE --worker-id=$i $WORKER_OPTION &
+    python3 -B run_worker.py --config=$CONFIG_FILE --worker-id=$i $WORKER_OPTION &
     worker_ids[$i]=$!
     echo "Worker $i started."
 done
 
-python run_master.py \
+python3 -B run_master.py \
 --config=$CONFIG_FILE \
 --num-workers=$NUM_WORKERS \
 --gcs-bucket=$BUCKET_NAME \
