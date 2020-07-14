@@ -161,13 +161,10 @@ class CoinrunTask(GymTask):
         self._env.start_level = seed
 
     def _process_action(self, action):
-        print('hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii')
-        import sys
-        sys.stdout.flush()
-        #print('1process action', action)
-        #print(self._env.action_space.sample())
-        return self._env.action_space.sample()
-        #return action
+        print('1111111111111process action', action)
+        print('a',self._env.action_space.sample())
+        #return self._env.action_space.sample()
+        return action
         #return (action * (self._action_high - self._action_low) / 2. +
         #        (self._action_high + self._action_low) / 2.)
 
