@@ -88,7 +88,8 @@ class BaseESMaster(abc.ABC):
                 logger=self._logger, iter_cnt=iter_cnt + 1, scores=scores)
 
             # Evaluate periodically.
-            if (iter_cnt + 1) % self._eval_every_n_iter == 0:
+            # was iter_cnt + 1, trying to get the model saved on iter=0
+            if iter_cnt % self._eval_every_n_iter == 0:
 
                 # Evaluate.
                 start_time = time.time()

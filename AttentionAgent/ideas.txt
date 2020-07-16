@@ -1,0 +1,9 @@
+
+- [x] usar diferencia entre este frame y el anterior
+- [] hacer que el controller reciba features de los patches
+- [] reward going right
+- [] reward speed
+- [] increasingly bigger obs space
+- [] glass eye effect, centrado en el pj
+- [] 1 attention with big square and 4/8 small "fades"
+- [] pain/pleasure-based learning (hebbian?)

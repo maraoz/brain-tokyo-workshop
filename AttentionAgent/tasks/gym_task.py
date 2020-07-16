@@ -1,13 +1,15 @@
+import random
 import cv2
 import gin
 import gym
+import gym.wrappers
+from gym.wrappers import Monitor
 from gym import spaces
 import numpy as np
 import os
 import tasks.abc_task
 import time
 
-import procgen
 import car_racing_variants
 
 class GymTask(tasks.abc_task.BaseTask):
@@ -47,7 +49,7 @@ class GymTask(tasks.abc_task.BaseTask):
 
     def _show_gui(self):
         if hasattr(self._env, 'render'):
-            self._env.render()
+            self._env.render(mode='human')
 
     def roll_out(self, solution, evaluate):
         ob = self.reset()
@@ -136,49 +138,6 @@ class CarRacingTask(GymTask):
                 env_string = 'CarRacingBlob-v0'
             elif kwargs['modification'] == 'manu':
                 env_string = 'CarRacingManu-v0'
-        self._logger.info('env_string: {}'.format(env_string))
-        self._env = gym.make(env_string)
-        return self
-
-    def set_video_dir(self, video_dir):
-        from gym.wrappers import Monitor
-        self._env = Monitor(
-            env=self._env,
-            directory=video_dir,
-            video_callable=lambda x: True
-        )
-
-
-@gin.configurable
-class CoinrunTask(GymTask):
-    """Gym Coinrun-v0 task."""
-
-    def __init__(self):
-        super(CoinrunTask, self).__init__()
-        self._max_steps = 0
-
-    def seed(self, seed):
-        self._env.start_level = seed
-
-    def _process_action(self, action):
-        print('1111111111111process action', action)
-        print('a',self._env.action_space.sample())
-        #return self._env.action_space.sample()
-        return action
-        #return (action * (self._action_high - self._action_low) / 2. +
-        #        (self._action_high + self._action_low) / 2.)
-
-    def create_task(self, **kwargs):
-        if 'render' in kwargs:
-            self._render = kwargs['render']
-        if 'out_of_track_cap' in kwargs:
-            self._neg_reward_cap = kwargs['out_of_track_cap']
-        if 'max_steps' in kwargs:
-            self._max_steps = kwargs['max_steps']
-        if 'logger' in kwargs:
-            self._logger = kwargs['logger']
-
-        env_string = 'procgen:procgen-coinrun-v0'
         self._logger.info('env_string: {}'.format(env_string))
         self._env = gym.make(env_string)
         return self

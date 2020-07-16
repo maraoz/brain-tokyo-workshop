@@ -24,7 +24,6 @@ torch_solutions.VisionTaskSolution.query_dim = 4
 torch_solutions.VisionTaskSolution.output_dim = 3
 torch_solutions.VisionTaskSolution.output_activation = "tanh"
 torch_solutions.VisionTaskSolution.num_hiddens = [16,]
-torch_solutions.VisionTaskSolution.l2_coefficient = 0
 torch_solutions.VisionTaskSolution.patch_size = 7
 torch_solutions.VisionTaskSolution.patch_stride = 4
 torch_solutions.VisionTaskSolution.top_k = 10

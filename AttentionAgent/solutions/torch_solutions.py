@@ -1,4 +1,5 @@
 import abc
+import time
 import gin
 import numpy as np
 import os
@@ -7,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
+from PIL import Image
+import cv2
 
 
 class BaseTorchSolution(solutions.abc_solution.BaseSolution):
@@ -171,7 +174,7 @@ class FCStack(nn.Module):
 class LSTMStack(nn.Module):
     """LSTM layers."""
 
-    def __init__(self, input_dim, num_units, output_dim):
+    def __init__(self, input_dim, num_units, output_dim, lstm_redux=10):
         super(LSTMStack, self).__init__()
         self._layers = []
         self._hidden_layers = len(num_units) if len(num_units) else 1
@@ -180,9 +183,14 @@ class LSTMStack(nn.Module):
             torch.zeros((self._hidden_layers, 1, self._hidden_size)),
             torch.zeros((self._hidden_layers, 1, self._hidden_size)),
         )
+        self.redux = nn.Linear(
+            in_features=input_dim,
+            out_features=lstm_redux,
+        )
+        self._layers.append(self.redux)
         if len(num_units):
             self._lstm = nn.LSTM(
-                input_size=input_dim,
+                input_size=lstm_redux,
                 hidden_size=self._hidden_size,
                 num_layers=self._hidden_layers,
             )
@@ -194,7 +202,7 @@ class LSTMStack(nn.Module):
             self._layers.append(fc)
         else:
             self._lstm = nn.LSTMCell(
-                input_size=input_dim,
+                input_size=lstm_redux,
                 hidden_size=self._hidden_size,
             )
             self._layers.append(self._lstm)
@@ -205,8 +213,9 @@ class LSTMStack(nn.Module):
 
     def forward(self, input_data):
         x_input = input_data
-        x_output, self._hidden = self._layers[0](
-            x_input.view(1, 1, -1), self._hidden)
+        x_output = self._layers[0](x_input)
+        x_output, self._hidden = self._layers[1](
+            x_output.view(1, 1, -1), self._hidden)
         x_output = torch.flatten(x_output, start_dim=0, end_dim=-1)
         if len(self._layers) > 1:
             x_output = self._layers[-1](x_output)
@@ -230,48 +239,48 @@ class MLPSolution(BaseTorchSolution):
                  output_dim,
                  output_activation,
                  use_lstm,
-                 l2_coefficient):
+                 lstm_redux
+                 ):
         super(MLPSolution, self).__init__()
         self._use_lstm = use_lstm
         self._output_dim = output_dim
         self._output_activation = output_activation
-        self._l2_coefficient = abs(l2_coefficient)
         if self._use_lstm:
-            self._fc_stack = LSTMStack(
+            self._core_stack = LSTMStack(
                 input_dim=input_dim,
                 output_dim=output_dim,
                 num_units=num_hiddens,
+                lstm_redux=lstm_redux
             )
         else:
-            self._fc_stack = FCStack(
+            self._core_stack = FCStack(
                 input_dim=input_dim,
                 output_dim=output_dim,
                 num_units=num_hiddens,
                 activation=activation,
             )
-        self._layers = self._fc_stack.layers
-        print('Number of parameters: {}'.format(
+        self._layers = self._core_stack.layers
+        print('MLP Number of parameters: {}'.format(
             self.get_num_params_per_layer()))
 
     def _get_output(self, inputs, update_filter=False):
         if not isinstance(inputs, torch.Tensor):
             inputs = torch.from_numpy(inputs).float()
-        fc_output = self._fc_stack(inputs)
+        # print('MLPSolution input', inputs, inputs.shape)
+        core_output = self._core_stack(inputs)
 
-        print('pre out activ')
         if self._output_activation == 'tanh':
-            output = torch.tanh(fc_output).squeeze().numpy()
+            output = torch.tanh(core_output).squeeze().numpy()
         elif self._output_activation == 'softmax':
-            print('softmax')
-            output = F.softmax(fc_output).numpy()
+            output = F.softmax(core_output, dim=-1).squeeze().numpy()
         else:
-            output = fc_output.squeeze().numpy()
+            output = core_output.squeeze().numpy()
 
         return output
 
     def reset(self):
-        if hasattr(self._fc_stack, 'reset'):
-            self._fc_stack.reset()
+        if hasattr(self._core_stack, 'reset'):
+            self._core_stack.reset()
 
 
 @gin.configurable
@@ -284,12 +293,15 @@ class VisionTaskSolution(BaseTorchSolution):
                  output_dim,
                  output_activation,
                  num_hiddens,
-                 l2_coefficient,
                  patch_size,
                  patch_stride,
                  top_k,
-                 data_dim,
+                 channels_dim,
                  activation,
+                 use_resnet,
+                 use_patches,
+                 resnet_features,
+                 lstm_redux,
                  normalize_positions=False,
                  use_lstm_controller=False,
                  show_overplot=False):
@@ -298,18 +310,29 @@ class VisionTaskSolution(BaseTorchSolution):
         self._patch_size = patch_size
         self._patch_stride = patch_stride
         self._top_k = top_k
-        self._l2_coefficient = l2_coefficient
         self._show_overplot = show_overplot
         self._normalize_positions = normalize_positions
         self._screen_dir = None
         self._img_ix = 1
         self._raw_importances = []
 
+        # mini resnet
+        self._use_resnet = use_resnet
+        if self._use_resnet:
+            resnet18 = torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
+            self._resnet = nn.Sequential(*list(resnet18.children())[:-1])
+            self._resnet = self._resnet.float()
+            self._resnet_features = resnet_features
+
         self._transform = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
         ])
+
+        self._use_patches = use_patches
+        if self._use_patches:
+            self._flat_patch_dim = patch_size**2*channels_dim
 
         n = int((image_size - patch_size) / patch_stride + 1)
         offset = self._patch_size // 2
@@ -324,19 +347,22 @@ class VisionTaskSolution(BaseTorchSolution):
         num_patches = n ** 2
         print('num_patches = {}'.format(num_patches))
         self._attention = SelfAttention(
-            data_dim=data_dim * self._patch_size ** 2,
+            data_dim=channels_dim * self._patch_size ** 2,
             dim_q=query_dim,
         )
         self._layers.extend(self._attention.layers)
 
+        self._mlp_input_dim = 2 + \
+            (self._flat_patch_dim if self._use_patches else 0) + \
+            (self._resnet_features if self._use_resnet else 0)
         self._mlp_solution = MLPSolution(
-            input_dim=self._top_k * 2,
+            input_dim=(self._top_k*self._mlp_input_dim),
             num_hiddens=num_hiddens,
             activation=activation,
             output_dim=output_dim,
             output_activation=output_activation,
-            l2_coefficient=l2_coefficient,
             use_lstm=use_lstm_controller,
+            lstm_redux=lstm_redux
         )
         self._layers.extend(self._mlp_solution.layers)
 
@@ -349,6 +375,8 @@ class VisionTaskSolution(BaseTorchSolution):
         ob = self._transform(inputs).permute(1, 2, 0)
         # print(ob.shape)
         h, w, c = ob.size()
+
+        # patches dark magic
         patches = ob.unfold(
             0, self._patch_size, self._patch_stride).permute(0, 3, 1, 2)
         patches = patches.unfold(
@@ -371,12 +399,14 @@ class VisionTaskSolution(BaseTorchSolution):
 
         centers = self._patch_centers[top_k_ix]
 
+        half_patch_size = self._patch_size // 2
+        patch_r = self._patch_size % 2
+        task_image = ob.numpy().copy()
+
         # Overplot.
         if self._show_overplot:
-            task_image = ob.numpy().copy()
             patch_importance_copy = patch_importance.numpy().copy()
 
-            import cv2
             if self._screen_dir is not None:
                 # Save the original screen.
                 img_filepath = os.path.join(
@@ -404,13 +434,13 @@ class VisionTaskSolution(BaseTorchSolution):
 
             white_patch = np.ones(
                 (self._patch_size, self._patch_size, 3))
-            half_patch_size = self._patch_size // 2
             for i, center in enumerate(centers):
                 row_ss = int(center[0]) - half_patch_size
-                row_ee = int(center[0]) + half_patch_size + 1
+                row_ee = int(center[0]) + half_patch_size + patch_r
                 col_ss = int(center[1]) - half_patch_size
-                col_ee = int(center[1]) + half_patch_size + 1
+                col_ee = int(center[1]) + half_patch_size + patch_r
                 ratio = 1.0 * i / self._top_k
+
                 task_image[row_ss:row_ee, col_ss:col_ee] = (
                         ratio * task_image[row_ss:row_ee, col_ss:col_ee] +
                         (1 - ratio) * white_patch)
@@ -430,11 +460,50 @@ class VisionTaskSolution(BaseTorchSolution):
 
             self._img_ix += 1
 
-        centers = centers.flatten(0, -1)
-        if self._normalize_positions:
-            centers = centers / self._image_size
+        mlp_input = torch.zeros((
+                self._top_k,
+                self._mlp_input_dim
+            ))
+        if self._use_resnet:
+            print('pre-resnet')
+            start_time = time.time()
+            patch_batch = np.zeros((self._top_k, 224, 224, 3))
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+            for i, center in enumerate(centers):
+                row_ss = int(center[0]) - half_patch_size
+                row_ee = int(center[0]) + half_patch_size + 1
+                col_ss = int(center[1]) - half_patch_size
+                col_ee = int(center[1]) + half_patch_size + 1
 
-        return self._mlp_solution.get_output(centers)
+                patch_array = task_image[row_ss:row_ee, col_ss:col_ee].copy()
+                resized_patch = cv2.resize(
+                    patch_array, (224, 224))
+                normalized_array = ((resized_patch - mean)/std).astype(np.double)
+                patch_batch[i] = normalized_array
+
+            resnet_input = torch.from_numpy(patch_batch).permute(0, 3, 2, 1).float()
+            features = self._resnet(resnet_input)
+            print('features', features.shape)
+            features = torch.flatten(features, 1)
+            print('flat features', features.shape)
+
+            # slice self._resnet_features features from resnet
+            sliced = features.narrow(1, 0, self._resnet_features)
+            mlp_input[:, :self._resnet_features] = sliced
+            if self._normalize_positions:
+                centers = centers / self._image_size
+            mlp_input[:, self._resnet_features:] = centers
+            time_cost = time.time() - start_time
+            print('post-resnet', time_cost*1000)
+        if self._use_patches:
+            top_patches = patches.flatten(1)[top_k_ix]
+            mlp_input[:, :self._flat_patch_dim] = top_patches
+            mlp_input[:, self._flat_patch_dim:] = centers
+        if not (self._use_resnet or self._use_patches):
+            mlp_input = centers
+
+        return self._mlp_solution.get_output(mlp_input.flatten(0, -1))
 
     def reset(self):
         self._selected_patch_centers = []

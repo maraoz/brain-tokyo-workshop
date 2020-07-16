@@ -2,6 +2,7 @@ import algorithms.cma
 import misc.utility
 import solutions.torch_solutions
 import tasks.gym_task
+import tasks.coinrun_task
 
 
 # CMA configurations
@@ -9,10 +10,10 @@ cma.CMA.population_size = 256
 cma.CMA.init_sigma = 0.1
 
 cma.CMAMaster.seed = 0
-cma.CMAMaster.n_repeat = 5
+cma.CMAMaster.n_repeat = 1
 cma.CMAMaster.max_iter = 2000
 cma.CMAMaster.eval_every_n_iter = 10
-cma.CMAMaster.n_eval_roll_outs = 10
+cma.CMAMaster.n_eval_roll_outs = 20
 
 utility.get_es_master.es_algorithm = @cma.CMAMaster
 utility.get_es_worker.es_algorithm = @cma.CMAWorker
@@ -24,17 +25,20 @@ torch_solutions.VisionTaskSolution.query_dim = 4
 torch_solutions.VisionTaskSolution.output_dim = 15
 torch_solutions.VisionTaskSolution.output_activation = "softmax"
 torch_solutions.VisionTaskSolution.num_hiddens = [16,]
-torch_solutions.VisionTaskSolution.l2_coefficient = 0
-torch_solutions.VisionTaskSolution.patch_size = 7
+torch_solutions.VisionTaskSolution.patch_size = 4
 torch_solutions.VisionTaskSolution.patch_stride = 4
-torch_solutions.VisionTaskSolution.top_k = 10
-torch_solutions.VisionTaskSolution.data_dim = 3
+torch_solutions.VisionTaskSolution.top_k = 5
+torch_solutions.VisionTaskSolution.channels_dim = 3
 torch_solutions.VisionTaskSolution.activation = "tanh"
 torch_solutions.VisionTaskSolution.normalize_positions = True
 torch_solutions.VisionTaskSolution.use_lstm_controller = True
+torch_solutions.VisionTaskSolution.lstm_redux = 10
+torch_solutions.VisionTaskSolution.use_patches = True
+torch_solutions.VisionTaskSolution.use_resnet = False
+torch_solutions.VisionTaskSolution.resnet_features = 256
 utility.create_solution.solution_loader = @torch_solutions.VisionTaskSolution()
 
 
 # Task configurations
 utility.create_task.max_steps = 1000
-utility.create_task.task_loader = @gym_task.CoinrunTask()
+utility.create_task.task_loader = @coinrun_task.CoinrunTask()
