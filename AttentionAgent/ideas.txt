@@ -1,6 +1,7 @@
 
 - [x] usar diferencia entre este frame y el anterior
-- [] hacer que el controller reciba features de los patches
+- [x] hacer que el controller reciba features de los patches
+- [x] hacer que el controller reciba el patch entero :)
 - [] reward going right
 - [] reward speed
 - [] increasingly bigger obs space
