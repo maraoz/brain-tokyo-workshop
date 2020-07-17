@@ -1,4 +1,5 @@
 import random
+import time
 import gin
 import gym
 import gym.wrappers
@@ -9,6 +10,10 @@ import procgen
 
 from .gym_task import GymTask
 
+# From https://github.com/openai/procgen/blob/615e7511b2ff8426caa54b8c5c801ffd2725b9b5/procgen/env.py#L155
+JUMPS = [2, 5, 8]
+NOP = 4
+
 @gin.configurable
 class CoinrunTask(GymTask):
     """Gym Coinrun-v0 task."""
@@ -17,6 +22,7 @@ class CoinrunTask(GymTask):
         super(CoinrunTask, self).__init__()
         self._max_steps = 0
         self._last_obs = None
+        self.last_jump = 0
 
     def seed(self, seed):
         self._env.start_level = seed
@@ -35,6 +41,19 @@ class CoinrunTask(GymTask):
         else:
             chosen = len(action)-1
         #print('chosen', chosen)
+
+        # can't jump too often
+        if self.jump_delay and chosen in JUMPS:
+            now = time.time()
+            since_jump = now - self.last_jump
+            if since_jump < self.jump_delay:
+                chosen = NOP
+            else:
+                self.last_jump = now
+
+        # stay still from time to time
+        #if random.random() < 0.2:
+        #    chosen = NOP
         return chosen
     
     def _process_observation(self, observation):
@@ -51,15 +70,14 @@ class CoinrunTask(GymTask):
     def create_task(self, **kwargs):
         if 'render' in kwargs:
             self._render = kwargs['render']
-        if 'out_of_track_cap' in kwargs:
-            self._neg_reward_cap = kwargs['out_of_track_cap']
         if 'max_steps' in kwargs:
             self._max_steps = kwargs['max_steps']
         if 'logger' in kwargs:
             self._logger = kwargs['logger']
+        self.jump_delay = kwargs.get('jump_delay') or None
 
         env_string = 'procgen:procgen-coinrun-v0'
-        difficulty = 'easy'
+        difficulty = kwargs['difficulty'] or 'easy'
         self._logger.info('env_string: {}'.format(env_string))
         if 'render' in kwargs:
             self._env = gym.make(env_string, distribution_mode=difficulty, render_mode="human")

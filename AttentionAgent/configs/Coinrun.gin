@@ -11,9 +11,9 @@ cma.CMA.init_sigma = 0.1
 
 cma.CMAMaster.seed = 0
 cma.CMAMaster.n_repeat = 1
-cma.CMAMaster.max_iter = 2000
+cma.CMAMaster.max_iter = 5000
 cma.CMAMaster.eval_every_n_iter = 10
-cma.CMAMaster.n_eval_roll_outs = 20
+cma.CMAMaster.n_eval_roll_outs = 100
 
 utility.get_es_master.es_algorithm = @cma.CMAMaster
 utility.get_es_worker.es_algorithm = @cma.CMAWorker
@@ -41,4 +41,6 @@ utility.create_solution.solution_loader = @torch_solutions.VisionTaskSolution()
 
 # Task configurations
 utility.create_task.max_steps = 1000
+utility.create_task.difficulty = 'hard'
+utility.create_task.jump_delay = 1
 utility.create_task.task_loader = @coinrun_task.CoinrunTask()

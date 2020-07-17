@@ -2,6 +2,8 @@
 - [x] usar diferencia entre este frame y el anterior
 - [x] hacer que el controller reciba features de los patches
 - [x] hacer que el controller reciba el patch entero :)
+- [] darle score extra si logra terminar inversamente proporcional a los steps que le llevo
+- [] meter un LSTM *antes* del attention asi puede cambiar el attention aunque el agente no se mueva.
 - [] reward going right
 - [] reward speed
 - [] increasingly bigger obs space
