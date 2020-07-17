@@ -11,7 +11,7 @@ cma.CMA.init_sigma = 0.1
 
 cma.CMAMaster.seed = 0
 cma.CMAMaster.n_repeat = 1
-cma.CMAMaster.max_iter = 5000
+cma.CMAMaster.max_iter = 1000
 cma.CMAMaster.eval_every_n_iter = 10
 cma.CMAMaster.n_eval_roll_outs = 100
 
@@ -32,7 +32,7 @@ torch_solutions.VisionTaskSolution.channels_dim = 3
 torch_solutions.VisionTaskSolution.activation = "tanh"
 torch_solutions.VisionTaskSolution.normalize_positions = True
 torch_solutions.VisionTaskSolution.use_lstm_controller = True
-torch_solutions.VisionTaskSolution.lstm_redux = 20
+torch_solutions.VisionTaskSolution.lstm_redux = 10
 torch_solutions.VisionTaskSolution.use_patches = True
 torch_solutions.VisionTaskSolution.use_resnet = False
 torch_solutions.VisionTaskSolution.resnet_features = 256
